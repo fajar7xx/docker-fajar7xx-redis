@@ -1,0 +1,8 @@
+# Environment variables
+.env
+
+# Redis data
+data/
+
+# Logs
+*.log
