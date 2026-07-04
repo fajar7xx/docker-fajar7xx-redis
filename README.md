@@ -50,14 +50,17 @@ docker compose down
 
 ### redis-stack
 
-- **Image**: `redis/redis-stack:latest`
+- **Image**: `redis/redis-stack:7.4.0-v1`
 - **Ports**:
-  - `6379`: Redis server port
-  - `8001`: RedisInsight web interface
+  - `10001`: Redis server port
+  - `13333`: RedisInsight web interface (bound to localhost only)
 - **Volumes**: 
-  - `./data:/data` - Persistent storage untuk data Redis (folder lokal)
+  - `./data:/data` - Persistent storage untuk data Redis (bind mount lokal)
 - **Environment**:
-  - `REDIS_ARGS`: Konfigurasi Redis (password & AOF persistence)
+  - `REDIS_ARGS`: Konfigurasi Redis (password, AOF persistence, maxmemory policy, snapshotting)
+- **Healthcheck**: Monitoring otomatis setiap 10 detik
+- **Logging**: Rotasi log (max 10MB per file, max 3 file)
+- **Resources**: Memory limit 512MB
 
 ## Accessing Services
 
@@ -71,7 +74,7 @@ AUTH yourpassword
 
 **RedisInsight (Web UI):**
 
-Buka browser: http://localhost:8001
+Buka browser: http://localhost:13333
 
 ## Configuration
 
@@ -85,15 +88,17 @@ REDISINSIGHT_PORT=8001
 ```
 
 **Environment Variables:**
-- `REDIS_PASSWORD`: Password untuk akses Redis (default: `yourpassword`)
-- `REDIS_PORT`: Port untuk Redis server (default: `6379`)
-- `REDISINSIGHT_PORT`: Port untuk RedisInsight web UI (default: `8001`)
+- `REDIS_PASSWORD`: Password untuk akses Redis
+- `REDIS_PORT`: Port untuk Redis server
+- `REDISINSIGHT_PORT`: Port untuk RedisInsight web UI
+- `REDIS_MAXMEMORY`: Maksimum memory Redis (default: `256mb`)
+- `REDIS_MAXMEMORY_POLICY`: Kebijakan eviction saat memory penuh (default: `allkeys-lru`)
 
 Jika tidak ada file `.env`, Docker Compose akan menggunakan nilai default yang ada di `compose.yaml` (dengan syntax `${VAR:-default}`).
 
 ## Data Persistence
 
-Data Redis disimpan di Docker volume `redis-data`. Data akan tetap ada meskipun container dihapus.
+Data Redis disimpan di bind mount `./data/`. Data akan tetap ada meskipun container dihapus.
 
 **Backup data:**
 

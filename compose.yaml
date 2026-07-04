@@ -1,12 +1,35 @@
 services:
   redis-stack:
-    image: redis/redis-stack:latest
+    image: redis/redis-stack:7.4.0-v1
     container_name: redis-stack
+    init: true
     ports:
       - "${REDIS_PORT:-6379}:6379"
-      - "${REDISINSIGHT_PORT:-8001}:8001"
+      - "127.0.0.1:${REDISINSIGHT_PORT:-8001}:8001"
     volumes:
       - ./data:/data
     environment:
-      REDIS_ARGS: --requirepass ${REDIS_PASSWORD:-yourpassword} --appendonly yes
+      REDIS_ARGS: >-
+        --requirepass ${REDIS_PASSWORD:-yourpassword}
+        --appendonly yes
+        --maxmemory ${REDIS_MAXMEMORY:-256mb}
+        --maxmemory-policy ${REDIS_MAXMEMORY_POLICY:-allkeys-lru}
+        --save 900 1
+        --save 300 10
+        --save 60 10000
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 1.5G
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     restart: unless-stopped
