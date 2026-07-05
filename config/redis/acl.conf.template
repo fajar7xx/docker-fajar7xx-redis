@@ -1,0 +1,9 @@
+user default off
+
+user admin on >__ADMIN_PASSWORD__ ~* &* +@all
+
+user app on >__APP_PASSWORD__ ~* &* +@all -@dangerous -@admin -flushall -flushdb -shutdown -debug -config -module -cluster
+
+user session on >__SESSION_PASSWORD__ ~session:* &* +@read +@write +@keyspace +ttl +expire +pexpire +expireat +pexpireat +del +exists +type -keys -scan -flushall -flushdb
+
+user queue on >__QUEUE_PASSWORD__ ~stream:* &* +@read +@write +@stream +@pubsub +@keyspace +xadd +xread +xgroup +xack +xdel +xlen +xrange +xrevrange +xpending +xclaim +xinfo +xautoclaim +xreadgroup -flushall -flushdb -keys -scan

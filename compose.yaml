@@ -3,33 +3,136 @@ services:
     image: redis/redis-stack:7.4.0-v1
     container_name: redis-stack
     init: true
+
+    entrypoint: ["/usr/local/etc/redis/docker-entrypoint.sh"]
+    command: []
+
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
       - "127.0.0.1:${REDISINSIGHT_PORT:-8001}:8001"
+
+    networks:
+      - redis_net
+
     volumes:
-      - ./data:/data
+      - ./config/redis/docker-entrypoint.sh:/usr/local/etc/redis/docker-entrypoint.sh:ro
+      - ./config/redis/acl.conf.template:/usr/local/etc/redis/acl.conf.template:ro
+      - ./config/redis/redis.conf:/redis-stack.conf:ro
+      - redis_data:/data
+      - redis_insight:/redisinsight
+
     environment:
-      REDIS_ARGS: >-
-        --requirepass ${REDIS_PASSWORD:-yourpassword}
-        --appendonly yes
-        --maxmemory ${REDIS_MAXMEMORY:-256mb}
-        --maxmemory-policy ${REDIS_MAXMEMORY_POLICY:-allkeys-lru}
-        --save 900 1
-        --save 300 10
-        --save 60 10000
+      ADMIN_PASSWORD: ${REDIS_ADMIN_PASSWORD:?REDIS_ADMIN_PASSWORD is required}
+      APP_PASSWORD: ${REDIS_APP_PASSWORD:?REDIS_APP_PASSWORD is required}
+      SESSION_PASSWORD: ${REDIS_SESSION_PASSWORD:?REDIS_SESSION_PASSWORD is required}
+      QUEUE_PASSWORD: ${REDIS_QUEUE_PASSWORD:?REDIS_QUEUE_PASSWORD is required}
+
+    cap_drop:
+      - SYS_ADMIN
+      - SYS_PTRACE
+      - NET_ADMIN
+      - NET_RAW
+      - AUDIT_CONTROL
+      - AUDIT_WRITE
+      - LINUX_IMMUTABLE
+      - MAC_ADMIN
+      - MAC_OVERRIDE
+      - SYS_BOOT
+      - SYS_MODULE
+      - SYS_TIME
+      - SYSLOG
+      - SYS_CHROOT
+      - MKNOD
+
+    security_opt:
+      - no-new-privileges:true
+
+    shm_size: "512M"
+
+    sysctls:
+      net.core.somaxconn: 65535
+
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      test:
+        - CMD
+        - redis-cli
+        - --user
+        - admin
+        - --pass
+        - ${REDIS_ADMIN_PASSWORD:?REDIS_ADMIN_PASSWORD is required}
+        - --no-auth-warning
+        - ping
       interval: 10s
       timeout: 3s
       retries: 3
-      start_period: 5s
+      start_period: 10s
+
     deploy:
       resources:
         limits:
-          memory: 1.5G
+          cpus: "${REDIS_CPU_LIMIT:-2.0}"
+          memory: "${REDIS_MEM_LIMIT:-2560M}"
+        reservations:
+          cpus: "${REDIS_CPU_RESERVE:-0.5}"
+          memory: "${REDIS_MEM_RESERVE:-256M}"
+
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
+
     restart: unless-stopped
+
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.67.0
+    container_name: redis-exporter
+    init: true
+
+    ports:
+      - "127.0.0.1:${REDIS_EXPORTER_PORT:-9121}:9121"
+
+    networks:
+      - redis_net
+
+    environment:
+      REDIS_ADDR: redis-stack:6379
+      REDIS_USER: admin
+      REDIS_PASSWORD: ${REDIS_ADMIN_PASSWORD:?REDIS_ADMIN_PASSWORD is required}
+      REDIS_EXPORTER_LOG_FORMAT: json
+
+    security_opt:
+      - no-new-privileges:true
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+    restart: unless-stopped
+
+    depends_on:
+      redis-stack:
+        condition: service_healthy
+
+networks:
+  redis_net:
+    name: redis_net
+    driver: bridge
+    internal: false
+    driver_opts:
+      com.docker.network.bridge.name: br-redis
+
+volumes:
+  redis_data:
+    name: redis_data
+    driver: local
+  redis_insight:
+    name: redis_insight
+    driver: local
